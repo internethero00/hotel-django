@@ -9,6 +9,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "django (>=6.1.2,<7.0.0)",
+    "psycopg[binary] (>=3.3.6,<4.0.0)",
 ]
 
 [tool.poetry]
@@ -20,6 +21,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 line-length = 100
+force-exclude = true
 target-version = "py312"
 src = ["src", "app"]
 extend-exclude = [".venv", "venv", "build", "dist", "__pycache__", "migrations"]
