@@ -21,3 +21,13 @@ class RoomListView(generics.ListAPIView):
     filter_backends = [OrderingFilter]
     ordering_fields = ["price", "created_at"]
     ordering = ["created_at"]
+
+
+class RoomDeleteView(generics.DestroyAPIView):
+    queryset = Room.objects.all()
+
+    def destroy(self, request, *args, **kwargs):
+        room = self.get_object()
+        room_id = room.id
+        self.perform_destroy(room)
+        return Response({"deleted_room_id": room_id}, status=status.HTTP_200_OK)
