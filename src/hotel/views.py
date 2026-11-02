@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Room
-from .serializers import RoomSerializer
+from .serializers import BookingSerializer, RoomSerializer
 
 
 class RoomCreateView(APIView):
@@ -31,3 +31,11 @@ class RoomDeleteView(generics.DestroyAPIView):
         room_id = room.id
         self.perform_destroy(room)
         return Response({"deleted_room_id": room_id}, status=status.HTTP_200_OK)
+
+
+class BookingCreateView(APIView):
+    def post(self, request):
+        serializer = BookingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        booking = serializer.save()
+        return Response({"booking_id": booking.id}, status=status.HTTP_201_CREATED)
