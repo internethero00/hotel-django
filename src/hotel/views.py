@@ -3,8 +3,18 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Room
+from .models import Booking, Room
 from .serializers import BookingSerializer, RoomSerializer
+
+
+class JsonDestroyAPIView(generics.DestroyAPIView):
+    response_key = "deleted_id"
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance_id = instance.id
+        self.perform_destroy(instance)
+        return Response({self.response_key: instance_id}, status=status.HTTP_200_OK)
 
 
 class RoomCreateView(APIView):
@@ -23,14 +33,9 @@ class RoomListView(generics.ListAPIView):
     ordering = ["created_at"]
 
 
-class RoomDeleteView(generics.DestroyAPIView):
+class RoomDeleteView(JsonDestroyAPIView):
     queryset = Room.objects.all()
-
-    def destroy(self, request, *args, **kwargs):
-        room = self.get_object()
-        room_id = room.id
-        self.perform_destroy(room)
-        return Response({"deleted_room_id": room_id}, status=status.HTTP_200_OK)
+    response_key = "deleted_room_id"
 
 
 class BookingCreateView(APIView):
@@ -39,3 +44,8 @@ class BookingCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
         return Response({"booking_id": booking.id}, status=status.HTTP_201_CREATED)
+
+
+class BookingDeleteView(JsonDestroyAPIView):
+    queryset = Booking.objects.all()
+    response_key = "deleted_booking_id"
