@@ -27,3 +27,15 @@ class BookingSerializer(serializers.ModelSerializer):
         if attrs["date_end"] <= attrs["date_start"]:
             raise serializers.ValidationError({"date_end": "date_end must be after date_start"})
         return attrs
+
+
+class BookingListSerializer(serializers.ModelSerializer):
+    booking_id = serializers.ReadOnlyField(source="id")
+
+    class Meta:
+        model = Booking
+        fields = ["booking_id", "date_start", "date_end"]
+
+
+class BookingListQuerySerializer(serializers.Serializer):
+    room_id = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all())

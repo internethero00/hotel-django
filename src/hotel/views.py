@@ -4,7 +4,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Booking, Room
-from .serializers import BookingSerializer, RoomSerializer
+from .serializers import (
+    BookingListQuerySerializer,
+    BookingListSerializer,
+    BookingSerializer,
+    RoomSerializer,
+)
 
 
 class JsonDestroyAPIView(generics.DestroyAPIView):
@@ -49,3 +54,13 @@ class BookingCreateView(APIView):
 class BookingDeleteView(JsonDestroyAPIView):
     queryset = Booking.objects.all()
     response_key = "deleted_booking_id"
+
+
+class BookingListView(generics.ListAPIView):
+    serializer_class = BookingListSerializer
+
+    def get_queryset(self):
+        query = BookingListQuerySerializer(data=self.request.query_params)
+        query.is_valid(raise_exception=True)
+        room = query.validated_data["room_id"]
+        return room.bookings.order_by("date_start")
