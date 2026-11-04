@@ -3,6 +3,7 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import services
 from .models import Booking, Room
 from .serializers import (
     BookingListQuerySerializer,
@@ -47,7 +48,12 @@ class BookingCreateView(APIView):
     def post(self, request):
         serializer = BookingSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        booking = serializer.save()
+
+        try:
+            booking = services.booking_create(**serializer.validated_data)
+        except services.BookingConflictError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_409_CONFLICT)
+
         return Response({"booking_id": booking.id}, status=status.HTTP_201_CREATED)
 
 
