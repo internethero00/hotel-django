@@ -1,7 +1,7 @@
 from rest_framework import generics, status
+from rest_framework.exceptions import APIException
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from . import services
 from .models import Booking, Room
@@ -11,6 +11,21 @@ from .serializers import (
     BookingSerializer,
     RoomSerializer,
 )
+
+
+class BookingConflict(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Room is already booked for these dates."
+    default_code = "booking_conflict"
+
+
+class JsonListCreateAPIView(generics.ListCreateAPIView):
+    response_key = "id"
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        response.data = {self.response_key: response.data["id"]}
+        return response
 
 
 class JsonDestroyAPIView(generics.DestroyAPIView):
@@ -23,50 +38,41 @@ class JsonDestroyAPIView(generics.DestroyAPIView):
         return Response({self.response_key: instance_id}, status=status.HTTP_200_OK)
 
 
-class RoomCreateView(APIView):
-    def post(self, request):
-        serializer = RoomSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        room = serializer.save()
-        return Response({"room_id": room.id}, status=status.HTTP_201_CREATED)
-
-
-class RoomListView(generics.ListAPIView):
+class RoomListCreateView(JsonListCreateAPIView):
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
     filter_backends = [OrderingFilter]
     ordering_fields = ["price", "created_at"]
     ordering = ["created_at"]
+    response_key = "room_id"
 
 
-class RoomDeleteView(JsonDestroyAPIView):
+class RoomDetailView(JsonDestroyAPIView):
     queryset = Room.objects.all()
     response_key = "deleted_room_id"
 
 
-class BookingCreateView(APIView):
-    def post(self, request):
-        serializer = BookingSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+class BookingListCreateView(JsonListCreateAPIView):
+    response_key = "booking_id"
 
-        try:
-            booking = services.booking_create(**serializer.validated_data)
-        except services.BookingConflictError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_409_CONFLICT)
-
-        return Response({"booking_id": booking.id}, status=status.HTTP_201_CREATED)
-
-
-class BookingDeleteView(JsonDestroyAPIView):
-    queryset = Booking.objects.all()
-    response_key = "deleted_booking_id"
-
-
-class BookingListView(generics.ListAPIView):
-    serializer_class = BookingListSerializer
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return BookingSerializer
+        return BookingListSerializer
 
     def get_queryset(self):
         query = BookingListQuerySerializer(data=self.request.query_params)
         query.is_valid(raise_exception=True)
         room = query.validated_data["room_id"]
         return room.bookings.order_by("date_start")
+
+    def perform_create(self, serializer):
+        try:
+            serializer.instance = services.booking_create(**serializer.validated_data)
+        except services.BookingConflictError as e:
+            raise BookingConflict(str(e)) from e
+
+
+class BookingDetailView(JsonDestroyAPIView):
+    queryset = Booking.objects.all()
+    response_key = "deleted_booking_id"

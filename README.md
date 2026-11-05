@@ -75,11 +75,15 @@ hotel-django/
 - `hotel_room` — номера: `id`, `description`, `price numeric(10, 2)`, `created_at`. Индексы на `price` и `created_at` для сортировки.
 - `hotel_booking` — брони: `id`, `room_id` (внешний ключ на `hotel_room`), `date_start`, `date_end`. Составной индекс `(room_id, date_start)` для выборки броней номера с сортировкой по дате начала. Ограничение `CHECK (date_end > date_start)`.
 
+## API
+
+URL обозначают ресурсы (`/rooms/`, `/bookings/`), а действие задаётся HTTP-методом: `GET` — получить, `POST` — создать, `DELETE` — удалить. Все URL заканчиваются на `/`.
+
 ### Номера
  
 #### Создать номер
  
-`POST /rooms/create`
+`POST /rooms/`
  
 | Параметр      | Тип    | Описание                                  |
 |---------------|--------|-------------------------------------------|
@@ -87,7 +91,7 @@ hotel-django/
 | `price`       | число  | Цена за ночь, больше 0, до 2 знаков после запятой |
  
 ```bash
-curl -X POST -d "description=Standard room" -d "price=3500" http://localhost:9000/rooms/create
+curl -X POST -d "description=Standard room" -d "price=3500" http://localhost:9000/rooms/
 ```
  
 Ответ `201 Created`:
@@ -98,14 +102,14 @@ curl -X POST -d "description=Standard room" -d "price=3500" http://localhost:900
  
 #### Список номеров
  
-`GET /rooms/list`
+`GET /rooms/`
  
 | Параметр   | Описание |
 |------------|----------|
 | `ordering` | Необязательно. `price`, `-price`, `created_at`, `-created_at`. Минус означает сортировку по убыванию. По умолчанию `created_at` (по возрастанию). |
  
 ```bash
-curl "http://localhost:9000/rooms/list?ordering=-price"
+curl "http://localhost:9000/rooms/?ordering=-price"
 ```
  
 Ответ `200 OK`:
@@ -119,10 +123,10 @@ curl "http://localhost:9000/rooms/list?ordering=-price"
  
 #### Удалить номер и все его брони
  
-`DELETE /rooms/<room_id>/delete`
+`DELETE /rooms/<room_id>/`
  
 ```bash
-curl -X DELETE http://localhost:9000/rooms/4/delete
+curl -X DELETE http://localhost:9000/rooms/4/
 ```
  
 Ответ `200 OK`:
@@ -137,7 +141,7 @@ curl -X DELETE http://localhost:9000/rooms/4/delete
  
 #### Создать бронь
  
-`POST /bookings/create`
+`POST /bookings/`
  
 | Параметр     | Тип    | Описание |
 |--------------|--------|----------|
@@ -146,7 +150,7 @@ curl -X DELETE http://localhost:9000/rooms/4/delete
 | `date_end`   | строка | Дата окончания в формате `ГГГГ-ММ-ДД`, строго позже `date_start` |
  
 ```bash
-curl -X POST -d "room_id=4" -d "date_start=2021-12-30" -d "date_end=2022-01-02" http://localhost:9000/bookings/create
+curl -X POST -d "room_id=4" -d "date_start=2021-12-30" -d "date_end=2022-01-02" http://localhost:9000/bookings/
 ```
  
 Ответ `201 Created`:
@@ -163,10 +167,10 @@ curl -X POST -d "room_id=4" -d "date_start=2021-12-30" -d "date_end=2022-01-02" 
  
 #### Удалить бронь
  
-`DELETE /bookings/<booking_id>/delete`
+`DELETE /bookings/<booking_id>/`
  
 ```bash
-curl -X DELETE http://localhost:9000/bookings/1444/delete
+curl -X DELETE http://localhost:9000/bookings/1444/
 ```
  
 Ответ `200 OK`:
@@ -179,12 +183,12 @@ curl -X DELETE http://localhost:9000/bookings/1444/delete
  
 #### Список броней номера
  
-`GET /bookings/list?room_id=<room_id>`
+`GET /bookings/?room_id=<room_id>`
  
 Брони отсортированы по дате начала.
  
 ```bash
-curl "http://localhost:9000/bookings/list?room_id=4"
+curl "http://localhost:9000/bookings/?room_id=4"
 ```
  
 Ответ `200 OK`:
@@ -214,3 +218,6 @@ curl "http://localhost:9000/bookings/list?room_id=4"
  
 
  
+## Вопросы и принятые решения
+
+- **URL отличаются от примеров в ТЗ.** В ТЗ используются `/bookings/create` и `/bookings/list`. Здесь API спроектирован по REST: действие задаётся HTTP-методом, а не глаголом в URL (`POST /bookings/`, `GET /bookings/?room_id=24`). Формат тел запросов и ответов совпадает с ТЗ.

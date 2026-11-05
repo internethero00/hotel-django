@@ -9,25 +9,21 @@ from hotel.models import Booking, Room
 
 class RoomCreateApiTest(APITestCase):
     def test_create_room(self):
-        resp = self.client.post(
-            reverse("room-create"), {"description": "Standard", "price": "3500"}
-        )
+        resp = self.client.post(reverse("room-list"), {"description": "Standard", "price": "3500"})
 
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         room_id = resp.json()["room_id"]
         self.assertTrue(Room.objects.filter(id=room_id).exists())
 
     def test_create_room_invalid_price(self):
-        resp = self.client.post(reverse("room-create"), {"description": "Standard", "price": "abc"})
+        resp = self.client.post(reverse("room-list"), {"description": "Standard", "price": "abc"})
 
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("price", resp.json())
         self.assertEqual(Room.objects.count(), 0)
 
     def test_create_room_negative_price(self):
-        resp = self.client.post(
-            reverse("room-create"), {"description": "Standard", "price": "-100"}
-        )
+        resp = self.client.post(reverse("room-list"), {"description": "Standard", "price": "-100"})
 
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -56,14 +52,14 @@ class RoomDeleteApiTest(APITestCase):
     def test_delete_room(self):
         room = Room.objects.create(description="Test room", price="1000.00")
 
-        resp = self.client.delete(reverse("room-delete", kwargs={"pk": room.id}))
+        resp = self.client.delete(reverse("room-detail", kwargs={"pk": room.id}))
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.json(), {"deleted_room_id": room.id})
         self.assertFalse(Room.objects.filter(id=room.id).exists())
 
     def test_delete_missing_room(self):
-        resp = self.client.delete(reverse("room-delete", kwargs={"pk": 999999}))
+        resp = self.client.delete(reverse("room-detail", kwargs={"pk": 999999}))
 
         self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -75,7 +71,7 @@ class BookingCreateApiTest(APITestCase):
 
     def post_booking(self, room_id, date_start, date_end):
         return self.client.post(
-            reverse("booking-create"),
+            reverse("booking-list"),
             {"room_id": room_id, "date_start": date_start, "date_end": date_end},
         )
 
@@ -144,7 +140,7 @@ class BookingDeleteApiTest(APITestCase):
             room=room, date_start=dt.date(2026, 6, 20), date_end=dt.date(2026, 6, 25)
         )
 
-        resp = self.client.delete(reverse("booking-delete", kwargs={"pk": booking.id}))
+        resp = self.client.delete(reverse("booking-detail", kwargs={"pk": booking.id}))
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertFalse(Booking.objects.filter(id=booking.id).exists())
