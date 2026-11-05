@@ -3,9 +3,9 @@ from rest_framework.exceptions import APIException
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
-from . import services
-from .models import Booking, Room
-from .serializers import (
+from hotel import services
+from hotel.models import Booking, Room
+from hotel.serializers import (
     BookingListQuerySerializer,
     BookingListSerializer,
     BookingSerializer,

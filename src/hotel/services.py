@@ -1,4 +1,4 @@
-from .models import Booking
+from hotel.models import Booking
 
 
 class BookingConflictError(Exception):
