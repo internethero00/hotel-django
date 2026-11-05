@@ -22,10 +22,17 @@ class RoomCreateApiTest(APITestCase):
         self.assertIn("price", resp.json())
         self.assertEqual(Room.objects.count(), 0)
 
-    def test_create_room_negative_price(self):
-        resp = self.client.post(reverse("room-list"), {"description": "Standard", "price": "-100"})
+    def test_create_room_non_positive_price(self):
+        for price in ["-100", "0", "0.00"]:
+            with self.subTest(price=price):
+                resp = self.client.post(
+                    reverse("room-list"), {"description": "Standard", "price": price}
+                )
 
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("price", resp.json())
+
+        self.assertEqual(Room.objects.count(), 0)
 
 
 class RoomListApiTest(APITestCase):

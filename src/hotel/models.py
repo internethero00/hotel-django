@@ -1,16 +1,23 @@
+from decimal import Decimal
+
 from django.core.validators import MinValueValidator
 from django.db import models
 
 
 class Room(models.Model):
     description = models.TextField()
-    price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    price = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         indexes = [
             models.Index(fields=["price"]),
             models.Index(fields=["created_at"]),
+        ]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(price__gt=0), name="room_price_positive"),
         ]
 
     def __str__(self):

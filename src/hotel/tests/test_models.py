@@ -22,6 +22,10 @@ class RoomModelTest(TestCase):
     def test_created_at_set_automatically(self):
         self.assertIsNotNone(self.room.created_at)
 
+    def test_zero_price_rejected_by_db(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Room.objects.create(description="Free room", price="0.00")
+
 
 class BookingModelTest(TestCase):
     @classmethod

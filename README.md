@@ -72,7 +72,7 @@ hotel-django/
  
 Таблицы создаются миграциями Django (`python manage.py migrate`). Для удобства SQL-запросы создания всех таблиц лежат в файле `schema.sql`.
  
-- `hotel_room` — номера: `id`, `description`, `price numeric(10, 2)`, `created_at`. Индексы на `price` и `created_at` для сортировки.
+- `hotel_room` — номера: `id`, `description`, `price numeric(10, 2)`, `created_at`. Ограничение `CHECK (price > 0)`. Индексы на `price` и `created_at` для сортировки.
 - `hotel_booking` — брони: `id`, `room_id` (внешний ключ на `hotel_room`), `date_start`, `date_end`. Составной индекс `(room_id, date_start)` для выборки броней номера с сортировкой по дате начала. Ограничение `CHECK (date_end > date_start)`.
 
 ## API
