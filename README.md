@@ -63,6 +63,8 @@ hotel-django/
         ├── models.py       # модели Room и Booking
         ├── serializers.py  # валидация входных данных и формат ответов
         ├── services.py     # бизнес-логика (создание брони с проверкой пересечения)
+        ├── pagination.py   # настройки постраничной выдачи списков
+        ├── filters.py      # сортировка списков с id в качестве последнего ключа
         ├── views.py        # HTTP-хендлеры
         ├── urls.py
         └── migrations/
@@ -78,6 +80,23 @@ hotel-django/
 ## API
 
 URL обозначают ресурсы (`/rooms/`, `/bookings/`), а действие задаётся HTTP-методом: `GET` — получить, `POST` — создать, `DELETE` — удалить. Все URL заканчиваются на `/`.
+
+### Пагинация
+
+Списки (`GET /rooms/`, `GET /bookings/`) отдаются постранично, по 20 записей:
+
+| Параметр    | Описание |
+|-------------|----------|
+| `page`      | Номер страницы, начиная с 1. По умолчанию 1. |
+| `page_size` | Размер страницы, не больше 100. По умолчанию 20. |
+
+Формат ответа:
+
+```json
+{"count": 45, "next": "http://localhost:9000/rooms/?page=2", "previous": null, "results": [...]}
+```
+
+`count` — сколько всего записей, `next`/`previous` — ссылки на соседние страницы (`null`, если страницы нет). Несуществующая страница — `404 Not Found`.
 
 ### Номера
  
@@ -106,7 +125,8 @@ curl -X POST -d "description=Standard room" -d "price=3500" http://localhost:900
  
 | Параметр   | Описание |
 |------------|----------|
-| `ordering` | Необязательно. `price`, `-price`, `created_at`, `-created_at`. Минус означает сортировку по убыванию. По умолчанию `created_at` (по возрастанию). |
+| `ordering` | Необязательно. `price`, `-price`, `created_at`, `-created_at`. Минус означает сортировку по убыванию. По умолчанию `created_at` (по возрастанию). При равных значениях записи упорядочены по `id`, поэтому страницы не пересекаются. |
+| `page`, `page_size` | Необязательно, см. «Пагинация». |
  
 ```bash
 curl "http://localhost:9000/rooms/?ordering=-price"
@@ -115,10 +135,15 @@ curl "http://localhost:9000/rooms/?ordering=-price"
 Ответ `200 OK`:
  
 ```json
-[
-  {"id": 2, "description": "Люкс", "price": "9000.00", "created_at": "2026-10-31T15:10:50.903409Z"},
-  {"id": 4, "description": "Standard room", "price": "3500.00", "created_at": "2026-11-04T15:48:11.111605Z"}
-]
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {"id": 2, "description": "Люкс", "price": "9000.00", "created_at": "2026-10-31T15:10:50.903409Z"},
+    {"id": 4, "description": "Standard room", "price": "3500.00", "created_at": "2026-11-04T15:48:11.111605Z"}
+  ]
+}
 ```
  
 #### Удалить номер и все его брони
@@ -185,7 +210,7 @@ curl -X DELETE http://localhost:9000/bookings/1444/
  
 `GET /bookings/?room_id=<room_id>`
  
-Брони отсортированы по дате начала.
+Брони отсортированы по дате начала. Поддерживаются `page` и `page_size`, см. «Пагинация».
  
 ```bash
 curl "http://localhost:9000/bookings/?room_id=4"
@@ -194,13 +219,18 @@ curl "http://localhost:9000/bookings/?room_id=4"
 Ответ `200 OK`:
  
 ```json
-[
-  {"booking_id": 1444, "date_start": "2021-12-30", "date_end": "2022-01-02"},
-  {"booking_id": 1450, "date_start": "2022-01-05", "date_end": "2022-01-07"}
-]
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {"booking_id": 1444, "date_start": "2021-12-30", "date_end": "2022-01-02"},
+    {"booking_id": 1450, "date_start": "2022-01-05", "date_end": "2022-01-07"}
+  ]
+}
 ```
  
-Если у номера нет броней — пустой список `[]`.
+Если у номера нет броней — `count: 0` и пустой `results`.
  
 ### Формат ошибок
  
@@ -221,3 +251,4 @@ curl "http://localhost:9000/bookings/?room_id=4"
 ## Вопросы и принятые решения
 
 - **URL отличаются от примеров в ТЗ.** В ТЗ используются `/bookings/create` и `/bookings/list`. Здесь API спроектирован по REST: действие задаётся HTTP-методом, а не глаголом в URL (`POST /bookings/`, `GET /bookings/?room_id=24`). Формат тел запросов и ответов совпадает с ТЗ.
+- **Списки отдаются постранично.** В ТЗ ответ списка броней — просто массив. Здесь оба списка обёрнуты в объект с пагинацией (`count`, `next`, `previous`, `results`), чтобы не отдавать всю таблицу одним ответом. Сам массив броней лежит в `results` в формате из ТЗ.

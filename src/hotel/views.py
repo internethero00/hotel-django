@@ -1,9 +1,9 @@
 from rest_framework import generics, status
 from rest_framework.exceptions import APIException
-from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
 from hotel import services
+from hotel.filters import StableOrderingFilter
 from hotel.models import Booking, Room
 from hotel.serializers import (
     BookingListQuerySerializer,
@@ -41,7 +41,7 @@ class JsonDestroyAPIView(generics.DestroyAPIView):
 class RoomListCreateView(JsonListCreateAPIView):
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
-    filter_backends = [OrderingFilter]
+    filter_backends = [StableOrderingFilter]
     ordering_fields = ["price", "created_at"]
     ordering = ["created_at"]
     response_key = "room_id"
@@ -64,7 +64,7 @@ class BookingListCreateView(JsonListCreateAPIView):
         query = BookingListQuerySerializer(data=self.request.query_params)
         query.is_valid(raise_exception=True)
         room = query.validated_data["room_id"]
-        return room.bookings.order_by("date_start")
+        return room.bookings.order_by("date_start", "id")
 
     def perform_create(self, serializer):
         try:

@@ -1,5 +1,7 @@
 import datetime as dt
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -45,14 +47,44 @@ class RoomListApiTest(APITestCase):
         resp = self.client.get(reverse("room-list"), {"ordering": "price"})
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        prices = [room["price"] for room in resp.json()]
+        prices = [room["price"] for room in resp.json()["results"]]
         self.assertEqual(prices, ["1000.00", "2000.00", "3000.00"])
 
     def test_list_ordered_by_price_desc(self):
         resp = self.client.get(reverse("room-list"), {"ordering": "-price"})
 
-        prices = [room["price"] for room in resp.json()]
+        prices = [room["price"] for room in resp.json()["results"]]
         self.assertEqual(prices, ["3000.00", "2000.00", "1000.00"])
+
+
+class RoomListPaginationApiTest(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        Room.objects.bulk_create(Room(description=f"Room {i}", price="1000.00") for i in range(25))
+
+    def test_first_page(self):
+        resp = self.client.get(reverse("room-list"))
+
+        data = resp.json()
+        self.assertEqual(data["count"], 25)
+        self.assertEqual(len(data["results"]), 20)
+        self.assertIsNotNone(data["next"])
+        self.assertIsNone(data["previous"])
+
+    def test_page_size_param(self):
+        resp = self.client.get(reverse("room-list"), {"page_size": 10, "page": 3})
+
+        data = resp.json()
+        self.assertEqual(len(data["results"]), 5)
+        self.assertIsNone(data["next"])
+
+    def test_ordering_has_id_tiebreaker(self):
+
+        with CaptureQueriesContext(connection) as ctx:
+            self.client.get(reverse("room-list"), {"ordering": "-price"})
+
+        select_sql = next(q["sql"] for q in ctx.captured_queries if "LIMIT" in q["sql"])
+        self.assertIn('ORDER BY "hotel_room"."price" DESC, "hotel_room"."id" ASC', select_sql)
 
 
 class RoomDeleteApiTest(APITestCase):
@@ -126,13 +158,15 @@ class BookingListApiTest(APITestCase):
         resp = self.client.get(reverse("booking-list"), {"room_id": self.room.id})
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        starts = [b["date_start"] for b in resp.json()]
+        starts = [b["date_start"] for b in resp.json()["results"]]
         self.assertEqual(starts, ["2026-06-01", "2026-06-20", "2026-07-10"])
 
     def test_list_item_format(self):
         resp = self.client.get(reverse("booking-list"), {"room_id": self.room.id})
 
-        self.assertEqual(set(resp.json()[0].keys()), {"booking_id", "date_start", "date_end"})
+        self.assertEqual(
+            set(resp.json()["results"][0].keys()), {"booking_id", "date_start", "date_end"}
+        )
 
     def test_list_without_room_id(self):
         resp = self.client.get(reverse("booking-list"))
