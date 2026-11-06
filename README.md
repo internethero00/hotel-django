@@ -1,0 +1,254 @@
+# hotel-django
+ 
+Простой сервис для управления номерами отеля и их бронированиями. HTTP JSON API без авторизации.
+ 
+## Стек
+ 
+- Python 3.12
+- Django + Django REST Framework
+- PostgreSQL 16
+- Poetry (управление зависимостями)
+- Docker, docker-compose
+- Gunicorn (сервер приложения в Docker)
+## Запуск
+ 
+### Через Docker (рекомендуется)
+ 
+```bash
+docker compose up --build
+```
+ 
+Сервис будет доступен на `http://localhost:9000`. Миграции применяются автоматически при старте контейнера. Данные Postgres хранятся в томе `pgdata` и не теряются при перезапуске.
+ 
+Остановить:
+ 
+```bash
+docker compose down        # данные сохранятся
+docker compose down -v     # удалить вместе с данными
+```
+ 
+### Локально (для разработки)
+ 
+```bash
+poetry install
+docker compose up -d db                              # поднять только Postgres
+cd src
+poetry run python manage.py migrate
+poetry run python manage.py runserver 9000
+```
+ 
+Параметры подключения к базе берутся из переменных окружения, значения по умолчанию совпадают с `docker-compose.yml`:
+ 
+| Переменная          | По умолчанию |
+|---------------------|--------------|
+| `POSTGRES_DB`       | `hotel`      |
+| `POSTGRES_USER`     | `hotel`      |
+| `POSTGRES_PASSWORD` | `hotel`      |
+| `POSTGRES_HOST`     | `localhost`  |
+| `POSTGRES_PORT`     | `5432`       |
+ 
+## Структура проекта
+ 
+```
+hotel-django/
+├── docker-compose.yml
+├── Dockerfile
+├── pyproject.toml
+├── poetry.lock
+├── schema.sql              # SQL создания таблиц (сгенерирован из миграций)
+└── src/
+    ├── manage.py
+    ├── config/             # настройки проекта, корневые URL
+    └── hotel/
+        ├── models.py       # модели Room и Booking
+        ├── serializers.py  # валидация входных данных и формат ответов
+        ├── services.py     # бизнес-логика (создание брони с проверкой пересечения)
+        ├── pagination.py   # настройки постраничной выдачи списков
+        ├── filters.py      # сортировка списков с id в качестве последнего ключа
+        ├── views.py        # HTTP-хендлеры
+        ├── urls.py
+        └── migrations/
+```
+ 
+## Схема базы данных
+ 
+Таблицы создаются миграциями Django (`python manage.py migrate`). Для удобства SQL-запросы создания всех таблиц лежат в файле `schema.sql`.
+ 
+- `hotel_room` — номера: `id`, `description`, `price numeric(10, 2)`, `created_at`. Ограничение `CHECK (price > 0)`. Индексы на `price` и `created_at` для сортировки.
+- `hotel_booking` — брони: `id`, `room_id` (внешний ключ на `hotel_room`), `date_start`, `date_end`. Составной индекс `(room_id, date_start)` для выборки броней номера с сортировкой по дате начала. Ограничение `CHECK (date_end > date_start)`.
+
+## API
+
+URL обозначают ресурсы (`/rooms/`, `/bookings/`), а действие задаётся HTTP-методом: `GET` — получить, `POST` — создать, `DELETE` — удалить. Все URL заканчиваются на `/`.
+
+### Пагинация
+
+Списки (`GET /rooms/`, `GET /bookings/`) отдаются постранично, по 20 записей:
+
+| Параметр    | Описание |
+|-------------|----------|
+| `page`      | Номер страницы, начиная с 1. По умолчанию 1. |
+| `page_size` | Размер страницы, не больше 100. По умолчанию 20. |
+
+Формат ответа:
+
+```json
+{"count": 45, "next": "http://localhost:9000/rooms/?page=2", "previous": null, "results": [...]}
+```
+
+`count` — сколько всего записей, `next`/`previous` — ссылки на соседние страницы (`null`, если страницы нет). Несуществующая страница — `404 Not Found`.
+
+### Номера
+ 
+#### Создать номер
+ 
+`POST /rooms/`
+ 
+| Параметр      | Тип    | Описание                                  |
+|---------------|--------|-------------------------------------------|
+| `description` | строка | Описание номера, обязательно, не пустое   |
+| `price`       | число  | Цена за ночь, больше 0, до 2 знаков после запятой |
+ 
+```bash
+curl -X POST -d "description=Standard room" -d "price=3500" http://localhost:9000/rooms/
+```
+ 
+Ответ `201 Created`:
+ 
+```json
+{"room_id": 4}
+```
+ 
+#### Список номеров
+ 
+`GET /rooms/`
+ 
+| Параметр   | Описание |
+|------------|----------|
+| `ordering` | Необязательно. `price`, `-price`, `created_at`, `-created_at`. Минус означает сортировку по убыванию. По умолчанию `created_at` (по возрастанию). При равных значениях записи упорядочены по `id`, поэтому страницы не пересекаются. |
+| `page`, `page_size` | Необязательно, см. «Пагинация». |
+ 
+```bash
+curl "http://localhost:9000/rooms/?ordering=-price"
+```
+ 
+Ответ `200 OK`:
+ 
+```json
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {"id": 2, "description": "Люкс", "price": "9000.00", "created_at": "2026-10-31T15:10:50.903409Z"},
+    {"id": 4, "description": "Standard room", "price": "3500.00", "created_at": "2026-11-04T15:48:11.111605Z"}
+  ]
+}
+```
+ 
+#### Удалить номер и все его брони
+ 
+`DELETE /rooms/<room_id>/`
+ 
+```bash
+curl -X DELETE http://localhost:9000/rooms/4/
+```
+ 
+Ответ `200 OK`:
+ 
+```json
+{"deleted_room_id": 4}
+```
+ 
+Если номера нет — `404 Not Found`.
+ 
+### Брони
+ 
+#### Создать бронь
+ 
+`POST /bookings/`
+ 
+| Параметр     | Тип    | Описание |
+|--------------|--------|----------|
+| `room_id`    | число  | ID существующего номера |
+| `date_start` | строка | Дата начала в формате `ГГГГ-ММ-ДД` |
+| `date_end`   | строка | Дата окончания в формате `ГГГГ-ММ-ДД`, строго позже `date_start` |
+ 
+```bash
+curl -X POST -d "room_id=4" -d "date_start=2021-12-30" -d "date_end=2022-01-02" http://localhost:9000/bookings/
+```
+ 
+Ответ `201 Created`:
+ 
+```json
+{"booking_id": 1444}
+```
+ 
+Если номер уже забронирован на пересекающиеся даты — `409 Conflict`:
+ 
+```json
+{"detail": "Room is already booked for these dates."}
+```
+ 
+#### Удалить бронь
+ 
+`DELETE /bookings/<booking_id>/`
+ 
+```bash
+curl -X DELETE http://localhost:9000/bookings/1444/
+```
+ 
+Ответ `200 OK`:
+ 
+```json
+{"deleted_booking_id": 1444}
+```
+ 
+Если брони нет — `404 Not Found`.
+ 
+#### Список броней номера
+ 
+`GET /bookings/?room_id=<room_id>`
+ 
+Брони отсортированы по дате начала. Поддерживаются `page` и `page_size`, см. «Пагинация».
+ 
+```bash
+curl "http://localhost:9000/bookings/?room_id=4"
+```
+ 
+Ответ `200 OK`:
+ 
+```json
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {"booking_id": 1444, "date_start": "2021-12-30", "date_end": "2022-01-02"},
+    {"booking_id": 1450, "date_start": "2022-01-05", "date_end": "2022-01-07"}
+  ]
+}
+```
+ 
+Если у номера нет броней — `count: 0` и пустой `results`.
+ 
+### Формат ошибок
+ 
+Ошибки валидации (`400 Bad Request`) группируются по полям, для каждого поля возвращается список сообщений:
+ 
+```json
+{"description": ["This field is required."], "price": ["A valid number is required."]}
+```
+ 
+Остальные ошибки (`404`, `405`, `409`) возвращаются в виде:
+ 
+```json
+{"detail": "No Room matches the given query."}
+```
+ 
+
+ 
+## Вопросы и принятые решения
+
+- **URL отличаются от примеров в ТЗ.** В ТЗ используются `/bookings/create` и `/bookings/list`. Здесь API спроектирован по REST: действие задаётся HTTP-методом, а не глаголом в URL (`POST /bookings/`, `GET /bookings/?room_id=24`). Формат тел запросов и ответов совпадает с ТЗ.
+- **Списки отдаются постранично.** В ТЗ ответ списка броней — просто массив. Здесь оба списка обёрнуты в объект с пагинацией (`count`, `next`, `previous`, `results`), чтобы не отдавать всю таблицу одним ответом. Сам массив броней лежит в `results` в формате из ТЗ.
